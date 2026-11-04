@@ -214,7 +214,7 @@ function overCity(field, radiusKm) {
 }
 
 // Velocidades plausíveis para uma tempestade na região
-const plausible = (v) => v && v.speed <= 130;
+const plausible = (v) => v && v.speed <= 100;
 
 export async function analyzeRadar(meta) {
   const frames = meta?.radar?.past || [];
@@ -244,14 +244,31 @@ export async function analyzeRadar(meta) {
   const regional = toVelocity(matchMotion(cur, old, mx, my, 180, maxShift), dtMin);
   result.motion = plausible(regional) && regional.quality > 0.05 ? regional : null;
 
-  for (const c of cells.slice(0, 18)) {
+  const near = cells.slice(0, 18);
+  const locals = new Map();
+  for (const c of near) {
     await new Promise((r) => setTimeout(r));
     const local = toVelocity(matchMotion(cur, old, c.px, c.py, 32, maxShift), dtMin);
-    const v = plausible(local) && local.quality >= 0.12 ? local : result.motion;
+    if (plausible(local) && local.quality >= 0.12) locals.set(c, local);
+  }
+  // Rumo de consenso: a mediana das células. Uma célula muito fora disso é erro de leitura
+  // (duas células parecidas confundidas entre as imagens), então ela herda o consenso.
+  const midpoint = (arr) => { const s = [...arr].sort((x, y) => x - y); return s[s.length >> 1]; };
+  let consensus = result.motion;
+  if (locals.size >= 3) {
+    const east = midpoint([...locals.values()].map((v) => v.east));
+    const north = midpoint([...locals.values()].map((v) => v.north));
+    consensus = { east, north, speed: Math.hypot(east, north), toBearing: ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360, quality: 1 };
+    result.motion = consensus;
+  }
+  for (const c of near) {
+    const local = locals.get(c);
+    const trusted = local && (!consensus || Math.hypot(local.east - consensus.east, local.north - consensus.north) <= 40);
+    const v = trusted ? local : consensus;
     if (!v) continue;
     c.speed = v.speed;
     c.toBearing = v.toBearing;
-    c.motionSource = v === local ? 'célula' : 'região';
+    c.motionSource = trusted ? 'célula' : 'região';
     // Caminho em km, com Maringá na origem
     const rx = ((c.nearLon - MGA.lon) * Math.PI * 6371 * Math.cos((MGA.lat * Math.PI) / 180)) / 180;
     const ry = ((c.nearLat - MGA.lat) * Math.PI * 6371) / 180;
