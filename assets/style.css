@@ -223,6 +223,7 @@ ul, ol { margin: 0; padding-left: 20px; }
 .ladder { list-style: none; padding: 0; display: flex; flex-direction: column; }
 .ladder li { display: grid; grid-template-columns: minmax(104px, 150px) minmax(0, 1fr); gap: 2px 12px; padding: 9px 10px; border-top: 1px solid var(--line); font-size: 15px; }
 .ladder li:first-child { border-top: 0; }
+@media (max-width: 520px) { .ladder li { grid-template-columns: minmax(0, 1fr); } }
 .ladder li strong { font: 600 17px/1.15 var(--display); }
 .ladder li.here { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--fg); }
 .ladder li.here strong::after { content: "estamos aqui"; display: block; font: 600 11px var(--body); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
