@@ -14,7 +14,7 @@ export const MODELS = [
 ];
 
 export const GRID = {
-  latMin: -26.5, latMax: -20.5, lonMin: -55, lonMax: -49, step: 0.5,
+  latMin: -26.5, latMax: -20.5, lonMin: -55, lonMax: -49, step: 0.6,
   models: ['gfs_seamless', 'icon_seamless'],
 };
 

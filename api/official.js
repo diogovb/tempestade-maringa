@@ -1,6 +1,6 @@
 // Fontes oficiais lidas por página: Defesa Civil do Paraná e aeroportos.
 // O site do Simepar recusa consultas automáticas, então a página só aponta para ele.
-import { getText, sendJson, sendError } from './_lib.js';
+import { getText, serve } from './_lib.js';
 
 const ENT = { aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', atilde: 'ã', otilde: 'õ', ccedil: 'ç', ecirc: 'ê', ocirc: 'ô', acirc: 'â', agrave: 'à', nbsp: ' ', amp: '&', quot: '"' };
 const decode = (s) => s
@@ -35,7 +35,7 @@ function parseMetar(raw) {
   });
 }
 
-export default async function handler(req, res) {
+async function build() {
   const out = { fetchedAt: Date.now(), defesaCivil: null, metar: null, problems: [] };
   await Promise.all([
     (async () => {
@@ -54,9 +54,10 @@ export default async function handler(req, res) {
       out.metar = parseMetar(await getText('https://aviationweather.gov/api/data/metar?ids=SBMG,SBLO&format=raw&hours=3', { timeout: 10_000 }));
     })().catch((e) => out.problems.push(`metar: ${e.message}`)),
   ]);
-  if (!out.defesaCivil && !out.metar) {
-    sendError(res, new Error(out.problems.join('; ')));
-    return;
-  }
-  sendJson(res, out, { fresh: 300, stale: 1800 });
+  if (!out.defesaCivil && !out.metar) throw new Error(out.problems.join('; '));
+  return out;
+}
+
+export default function handler(req, res) {
+  return serve(res, 'official', build, { fresh: 300, stale: 1800 });
 }

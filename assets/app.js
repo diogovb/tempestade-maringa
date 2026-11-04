@@ -1065,18 +1065,20 @@ function renderLadder() {
 
 function renderHealth() {
   const rows = [
-    ['Avisos', 'INMET', data.alerts?.fetchedAt, 30],
-    ['Radar', 'RainViewer', data.nowcast?.frameTime, 40],
-    ['Raios', 'NOAA, satélite GOES-19', data.glm?.fetchedAt, 30],
-    ['Previsão por modelo', 'NOAA, ECMWF, DWD, Canadá, Reino Unido, França e China, via Open-Meteo', data.model?.fetchedAt, 180],
-    ['Cenários', 'ECMWF, via Open-Meteo', data.ensemble?.fetchedAt, 360],
-    ['Mapa de calor', 'GFS e ICON, via Open-Meteo', data.grid?.fetchedAt, 360],
-    ['Boletim', 'Defesa Civil do Paraná', data.official?.defesaCivil ? data.official.fetchedAt : null, 120],
-    ['Aeroporto', 'METAR, via NOAA', data.official?.metar ? data.official.fetchedAt : null, 60],
+    ['Avisos', 'INMET', data.alerts?.fetchedAt, 30, 'alerts'],
+    ['Radar', 'RainViewer', data.nowcast?.frameTime, 40, 'radar'],
+    ['Raios', 'NOAA, satélite GOES-19', data.glm?.fetchedAt, 30, 'glm'],
+    ['Previsão por modelo', 'NOAA, ECMWF, DWD, Canadá, Reino Unido, França e China, via Open-Meteo', data.model?.fetchedAt, 180, 'model'],
+    ['Cenários', 'ECMWF, via Open-Meteo', data.ensemble?.fetchedAt, 360, 'ensemble'],
+    ['Mapa de calor', 'GFS e ICON, via Open-Meteo', data.grid?.fetchedAt, 360, 'grid'],
+    ['Boletim', 'Defesa Civil do Paraná', data.official?.defesaCivil ? data.official.fetchedAt : null, 120, 'official'],
+    ['Aeroporto', 'METAR, via NOAA', data.official?.metar ? data.official.fetchedAt : null, 60, 'official'],
   ];
-  $('#health tbody').innerHTML = rows.map(([n, src, at, max]) => {
-    const cls = !at ? 'bad' : Date.now() - at > max * MIN ? 'old' : '';
-    return `<tr><td>${n}</td><td>${src}</td><td class="${cls}">${at ? `${hhmm(at)} (${ago(at)})` : 'indisponível'}</td></tr>`;
+  $('#health tbody').innerHTML = rows.map(([n, src, at, max, key]) => {
+    const failed = !at && tried[key];
+    const cls = failed ? 'bad' : at && Date.now() - at > max * MIN ? 'old' : '';
+    const text = at ? `${hhmm(at)} (${ago(at)})` : failed ? 'indisponível, tentando de novo' : 'carregando';
+    return `<tr><td>${n}</td><td>${src}</td><td class="${cls}">${text}</td></tr>`;
   }).join('');
 }
 
@@ -1099,50 +1101,70 @@ function renderAll() {
   safe(renderStripDetail);
 }
 
-async function refreshAlerts() {
-  let d = null;
-  try { d = await api('alerts'); } catch (e) { console.warn(e); }
-  if (!d || Date.now() - d.fetchedAt > 20 * MIN) {
-    // Plano B: lê direto do INMET se o nosso servidor falhar
-    try {
-      const j = await (await fetch(INMET_URL)).json();
-      d = { fetchedAt: Date.now(), alerts: parseInmet(j), cemaden: d?.cemaden ?? data.alerts?.cemaden ?? null };
-    } catch (e) { console.warn(e); }
-  }
-  if (d) data.alerts = d;
-  renderAll();
-}
-async function refreshOfficial() {
-  try { data.official = await api('official'); renderAll(); } catch (e) { console.warn(e); safe(renderAgencies); }
-}
-async function refreshGlm() {
-  try { data.glm = await api('glm'); safe(renderNow); safe(renderGlmOnMap); safe(renderAgencies); safe(renderHealth); } catch (e) { console.warn(e); }
-}
-async function refreshModel() {
-  let d = null;
-  try { d = await api('model'); } catch (e) { console.warn(e); }
-  if (!d || Date.now() - d.fetchedAt > 3 * HOUR) {
-    try {
-      d = await fetchModelSeries(async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
-    } catch (e) { console.warn(e); }
-  }
-  data.model = d ?? data.model ?? false;
-  renderAll();
-}
-async function refreshEnsemble() {
-  try { data.ensemble = await api('ensemble'); safe(renderForecast); safe(renderHealth); } catch (e) { console.warn(e); }
-}
-async function refreshGrid() {
+// Quando uma fonte falha, tenta de novo logo, com espera crescente, em vez de esperar o próximo ciclo.
+const tried = {};
+const attempts = {};
+const retryTimers = {};
+async function guarded(key, load, onOk, onFail) {
   try {
-    data.grid = await api('grid');
+    const d = await load();
+    tried[key] = true;
+    attempts[key] = 0;
+    clearTimeout(retryTimers[key]);
+    onOk(d);
+  } catch (e) {
+    console.warn(key, e);
+    tried[key] = true;
+    attempts[key] = (attempts[key] || 0) + 1;
+    clearTimeout(retryTimers[key]);
+    const wait = Math.min(5 * MIN, 15_000 * 2 ** attempts[key]) + Math.random() * 10_000;
+    retryTimers[key] = setTimeout(() => guarded(key, load, onOk, onFail), wait);
+    if (onFail) onFail(e);
+    safe(renderHealth);
+  }
+}
+
+function refreshAlerts() {
+  return guarded('alerts', async () => {
+    let d = null;
+    try { d = await api('alerts'); } catch (e) { console.warn(e); }
+    if (!d || Date.now() - d.fetchedAt > 20 * MIN) {
+      // Plano B: lê direto do INMET se o nosso servidor falhar
+      try {
+        const j = await (await fetch(INMET_URL)).json();
+        d = { fetchedAt: Date.now(), alerts: parseInmet(j), cemaden: d?.cemaden ?? data.alerts?.cemaden ?? null };
+      } catch (e) { console.warn(e); }
+    }
+    if (!d) throw new Error('avisos indisponíveis');
+    return d;
+  }, (d) => { data.alerts = d; renderAll(); }, () => safe(renderStatus));
+}
+function refreshOfficial() {
+  return guarded('official', () => api('official'), (d) => { data.official = d; renderAll(); });
+}
+function refreshGlm() {
+  return guarded('glm', () => api('glm'), (d) => { data.glm = d; safe(renderNow); safe(renderGlmOnMap); safe(renderAgencies); safe(renderHealth); });
+}
+function refreshModel() {
+  return guarded('model', async () => {
+    let d = null;
+    try { d = await api('model'); } catch (e) { console.warn(e); }
+    if (!d || Date.now() - d.fetchedAt > 3 * HOUR) {
+      d = await fetchModelSeries(async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+    }
+    return d;
+  }, (d) => { data.model = d; renderAll(); }, () => { data.model = data.model ?? false; safe(renderForecast); });
+}
+function refreshEnsemble() {
+  return guarded('ensemble', () => api('ensemble'), (d) => { data.ensemble = d; safe(renderForecast); safe(renderHealth); });
+}
+function refreshGrid() {
+  return guarded('grid', () => api('grid'), (d) => {
+    data.grid = d;
     data.gridError = false;
     if (view.hourIdx == null || !gridHours().includes(view.hourIdx)) view.hourIdx = defaultHour();
     safe(renderHeat); safe(syncMapUI); safe(renderHealth);
-  } catch (e) {
-    console.warn(e);
-    data.gridError = true;
-    safe(syncMapUI);
-  }
+  }, () => { data.gridError = true; safe(syncMapUI); });
 }
 
 let lastFrame = null;

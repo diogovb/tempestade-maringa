@@ -115,15 +115,24 @@ def build():
     }
 
 
+LAST_GOOD = None
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        global LAST_GOOD
         try:
             body = json.dumps(build(), separators=(",", ":")).encode()
-            status, cache = 200, "max-age=240, stale-while-revalidate=900"
+            LAST_GOOD = body
+            status, cache = 200, "max-age=240, stale-while-revalidate=900, stale-if-error=86400"
         except Exception as e:
             print("glm falhou", e)
-            body = json.dumps({"ok": False, "error": str(e)[:160]}).encode()
-            status, cache = 502, "max-age=30"
+            if LAST_GOOD:
+                # O horário original vai junto, e a página mostra que o dado está antigo.
+                body, status, cache = LAST_GOOD, 200, "max-age=30, stale-while-revalidate=120"
+            else:
+                body = json.dumps({"ok": False, "error": str(e)[:160]}).encode()
+                status, cache = 502, "max-age=15"
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "public, max-age=0, must-revalidate")
