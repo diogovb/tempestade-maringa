@@ -1,48 +1,12 @@
-// Fontes oficiais lidas por página: Simepar, Defesa Civil do Paraná e aeroportos.
-import { execFile } from 'node:child_process';
-import { MGA } from '../assets/shared.js';
-import { UA, getText, sendJson, sendError } from './_lib.js';
-
-function curlText(url, timeoutS = 12) {
-  return new Promise((resolve, reject) => {
-    execFile('curl', ['-sS', '-f', '-L', '-m', String(timeoutS), '-A', UA, url], { maxBuffer: 20 * 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        const lines = String(err.message).split('\n').map((l) => l.trim()).filter(Boolean);
-        reject(new Error(err.code === 'ENOENT' ? 'curl ausente' : (lines[lines.length - 1] || 'curl falhou').slice(0, 100)));
-      } else {
-        resolve(stdout);
-      }
-    });
-  });
-}
+// Fontes oficiais lidas por página: Defesa Civil do Paraná e aeroportos.
+// O site do Simepar recusa consultas automáticas, então a página só aponta para ele.
+import { getText, sendJson, sendError } from './_lib.js';
 
 const ENT = { aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', atilde: 'ã', otilde: 'õ', ccedil: 'ç', ecirc: 'ê', ocirc: 'ô', acirc: 'â', agrave: 'à', nbsp: ' ', amp: '&', quot: '"' };
 const decode = (s) => s
   .replace(/&(\w+);/g, (m, n) => ENT[n] ?? m)
   .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
-const plain = (html) => decode(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ');
-
-const MONTHS = { Jan: 0, Fev: 1, Mar: 2, Abr: 3, Mai: 4, Jun: 5, Jul: 6, Ago: 7, Set: 8, Out: 9, Nov: 10, Dez: 11 };
-function brtEpoch(dateText, hhmm = '00:00') {
-  const m = dateText.match(/(\d{2}) de (\w{3}) de (\d{4})/);
-  if (!m) return null;
-  const mm = String(MONTHS[m[2]] + 1).padStart(2, '0');
-  return Date.parse(`${m[3]}-${mm}-${m[1]}T${hhmm}:00-03:00`);
-}
-
-function parseSimepar(html) {
-  const text = plain(html);
-  const out = { obs: null, daily: [] };
-  const o = text.match(/(\w{3}, \d{2} de \w{3} de \d{4}) - (\d{2}:\d{2}) - Dados medidos por esta\S+ meteorol\S+ (-?\d+)\S*\s*C Sensação Térmica: (-?\d+)\S* Precipitação: ([\d.]+) mm Vento: ([A-Z]+) (\d+) km\/h Rajada: (\d+) km\/h/);
-  if (o) {
-    out.obs = { at: brtEpoch(o[1], o[2]), temp: +o[3], feels: +o[4], rain: +o[5], windDir: o[6], wind: +o[7], gust: +o[8] };
-  }
-  const dailyRe = /(\w{3}, \d{2} de \w{3} de \d{4}) UR Umidade Relativa: (\d+)% - (\d+)% Precipitação Acumulada: ([\d.]+) mm Probabilidade de Ocorrência de Chuva: (\d+)% Vento: ([A-Z]+) (\d+) km\/h Rajada: (\d+) km\/h/g;
-  for (const m of text.matchAll(dailyRe)) {
-    out.daily.push({ day: m[1], at: brtEpoch(m[1]), rain: +m[4], prob: +m[5], gust: +m[8] });
-  }
-  return out;
-}
+const plain = (html) => decode(html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ');
 
 function parseMetar(raw) {
   return raw.split('\n').map((l) => l.trim()).filter(Boolean).map((line) => {
@@ -72,16 +36,8 @@ function parseMetar(raw) {
 }
 
 export default async function handler(req, res) {
-  const out = { fetchedAt: Date.now(), simepar: null, radarNotice: null, defesaCivil: null, metar: null, problems: [] };
-  const jobs = [
-    (async () => {
-      out.simepar = parseSimepar(await curlText(`https://www.simepar.br/simepar/forecast_by_counties/${MGA.ibge}`));
-      if (!out.simepar.obs && !out.simepar.daily.length) { out.simepar = null; throw new Error('formato mudou'); }
-    })().catch((e) => out.problems.push(`simepar: ${e.message}`)),
-    (async () => {
-      const m = plain(await curlText('https://www.simepar.br/simepar/radar_msc')).match(/ATENÇÃO:.{10,300}?km\./);
-      out.radarNotice = m ? m[0] : null;
-    })().catch((e) => out.problems.push(`radar: ${e.message}`)),
+  const out = { fetchedAt: Date.now(), defesaCivil: null, metar: null, problems: [] };
+  await Promise.all([
     (async () => {
       const html = await getText('https://www.defesacivil.pr.gov.br/', { timeout: 12_000 });
       const b = html.match(/https?:\/\/[^"']*boletim_gestao_riscos_(\d+)_(\d{4})\.pdf/);
@@ -97,9 +53,8 @@ export default async function handler(req, res) {
     (async () => {
       out.metar = parseMetar(await getText('https://aviationweather.gov/api/data/metar?ids=SBMG,SBLO&format=raw&hours=3', { timeout: 10_000 }));
     })().catch((e) => out.problems.push(`metar: ${e.message}`)),
-  ];
-  await Promise.all(jobs);
-  if (!out.simepar && !out.defesaCivil && !out.metar) {
+  ]);
+  if (!out.defesaCivil && !out.metar) {
     sendError(res, new Error(out.problems.join('; ')));
     return;
   }

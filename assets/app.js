@@ -952,22 +952,13 @@ function renderAgencies() {
     : '';
   out.push(agency('Defesa Civil do Paraná', 'boletim e alertas', '', `${dcBrief}<div class="links">${bol}${a('https://www.defesacivil.pr.gov.br/Pagina/Alertas-da-Defesa-Civil', 'Como receber alertas')}</div>${dcNews ? `<ul>${dcNews}</ul>` : ''}`));
 
-  // Simepar
-  const sp = data.official?.simepar;
+  // Simepar: só links, porque o site recusa consultas automáticas
   let spBody = '';
-  if (sp?.obs) {
-    spBody += `<p>Estação em Maringá às ${hhmm(sp.obs.at)}: ${sp.obs.temp} °C, vento ${sp.obs.windDir} de ${sp.obs.wind} km/h, rajada de ${sp.obs.gust} km/h.</p>`;
-  }
-  if (sp?.daily?.length) {
-    spBody += `<table class="mini-table"><thead><tr><th>Previsão</th><th>Chuva</th><th>Chance</th><th>Rajada</th></tr></thead><tbody>${sp.daily.slice(0, 3).map((x) => `<tr><td>${esc(cap(dayName(x.at)))}</td><td>${String(x.rain).replace('.', ',')} mm</td><td>${x.prob}%</td><td>${x.gust} km/h</td></tr>`).join('')}</tbody></table>`;
-    spBody += '<p class="muted">A previsão diária é uma média para o município. Ela não capta a rajada de uma tempestade isolada.</p>';
-  }
   if (inBrief) {
     spBody += `<p>Segundo o ${a('https://hojepr.com/parana-enfrenta-risco-de-novos-tornados-e-temporais-com-ventos-acima-de-100-km-h/', 'HojePR')} e a ${a('https://www.gazetadopovo.com.br/parana/defesa-civil-aponta-segundo-pior-cenario-do-ano-e-coloca-pr-em-alerta-maximo-para-novos-tornados/', 'Gazeta do Povo')}, o Simepar aponta risco de supercélulas: o maior risco fica na metade sul nesta quarta e a instabilidade avança para o norte até quinta.</p>`;
+    spBody += '<p>Em 4/11, o site do Simepar informava que o radar de Cascavel estava desativado por falha. O mosaico deles usava só o radar de Teixeira Soares, com alcance de 480 km.</p>';
   }
-  if (data.official?.radarNotice) spBody += `<p>${esc(data.official.radarNotice)}</p>`;
-  else if (inBrief) spBody += '<p>Em 4/11, o site do Simepar informava que o radar de Cascavel estava desativado por falha. O mosaico deles usava só o radar de Teixeira Soares, com alcance de 480 km.</p>';
-  out.push(agency('Simepar', 'órgão do Paraná', sp ? timeTag(data.official.fetchedAt, 60) : '', `${spBody}<div class="links">${a('https://www.simepar.br/simepar/radar_msc', 'Radar oficial')}${a('https://www.simepar.br/simepar/raios_simepar', 'Raios')}${a(`https://www.simepar.br/simepar/forecast_by_counties/${MGA.ibge}`, 'Previsão de Maringá')}</div>`));
+  out.push(agency('Simepar', 'órgão do Paraná', '', `${spBody}<div class="links">${a('https://www.simepar.br/simepar/radar_msc', 'Radar oficial')}${a('https://www.simepar.br/simepar/raios_simepar', 'Raios')}${a(`https://www.simepar.br/simepar/forecast_by_counties/${MGA.ibge}`, 'Previsão de Maringá')}</div><p class="muted">O Simepar não permite leitura automática pelo site, então esta página não mostra os dados dele ao vivo. Abra os links acima.</p>`));
 
   // Raios
   const g = data.glm;
@@ -1080,7 +1071,6 @@ function renderHealth() {
     ['Previsão por modelo', 'NOAA, ECMWF, DWD, Canadá, Reino Unido, França e China, via Open-Meteo', data.model?.fetchedAt, 180],
     ['Cenários', 'ECMWF, via Open-Meteo', data.ensemble?.fetchedAt, 360],
     ['Mapa de calor', 'GFS e ICON, via Open-Meteo', data.grid?.fetchedAt, 360],
-    ['Previsão e estação', 'Simepar', data.official?.simepar ? data.official.fetchedAt : null, 60],
     ['Boletim', 'Defesa Civil do Paraná', data.official?.defesaCivil ? data.official.fetchedAt : null, 120],
     ['Aeroporto', 'METAR, via NOAA', data.official?.metar ? data.official.fetchedAt : null, 60],
   ];
