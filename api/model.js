@@ -9,5 +9,5 @@ async function build() {
 }
 
 export default function handler(req, res) {
-  return serve(res, 'model', build, { fresh: 1800, stale: 7200 });
+  return serve(res, 'model', build, { fresh: 900, stale: 7200 });
 }

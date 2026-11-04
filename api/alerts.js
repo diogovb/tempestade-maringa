@@ -18,5 +18,5 @@ async function build() {
 }
 
 export default function handler(req, res) {
-  return serve(res, 'alerts', build, { fresh: 120, stale: 600 });
+  return serve(res, 'alerts', build, { fresh: 60, stale: 300 });
 }

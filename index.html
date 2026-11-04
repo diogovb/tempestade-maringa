@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Monitor de Tempestades Maringá</title>
-<meta name="description" content="Radar, raios, avisos do INMET e previsão por modelos para Maringá, atualizados automaticamente. Página independente, sem vínculo com órgãos públicos.">
+<meta name="description" content="Radar, raios e avisos do INMET para Maringá, ao vivo. Página independente, sem vínculo oficial.">
 <meta name="theme-color" content="#0b1014">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Monitor de Tempestades Maringá">
-<meta property="og:description" content="Antes de repassar áudio ou print, confira aqui: radar, raios, avisos do INMET e previsão por modelos. Página independente.">
+<meta property="og:description" content="Radar, raios e avisos do INMET ao vivo. Página independente.">
 <meta property="og:url" content="https://tempestade-maringa.vercel.app/">
 <meta property="og:image" content="https://tempestade-maringa.vercel.app/assets/og.png">
 <meta property="og:locale" content="pt_BR">
@@ -19,195 +19,108 @@
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <strong>Monitor de Tempestades</strong>
-    <span>Maringá, PR</span>
-  </div>
-  <div class="clock"><span id="clock">--:--</span><small>horário de Brasília</small></div>
-</header>
-<p class="indep">Página independente, sem vínculo com governo ou órgão público. Reúne dados abertos e não substitui os alertas oficiais.</p>
+<div class="app">
+  <header class="bar sev-stale" id="bar">
+    <span class="lvl" id="lvl">INMET</span>
+    <span class="bar-txt" id="bar-txt">Carregando avisos</span>
+    <span class="clock"><i class="dot"></i><span id="clock">--:--</span></span>
+  </header>
 
-<div id="radar-alert" class="radar-alert" role="alert" hidden></div>
-
-<section id="status" class="status sev-loading" aria-live="polite">
-  <div class="status-inner">
-    <p class="status-tag" id="status-tag">AVISOS OFICIAIS</p>
-    <h1 id="status-title">Carregando os avisos oficiais</h1>
-    <p id="status-detail">Se esta mensagem não sair em alguns segundos, confira em <a href="https://avisos.inmet.gov.br/" rel="noopener">avisos.inmet.gov.br</a>.</p>
-    <p id="status-near" class="status-near" hidden></p>
-    <p id="status-fresh" class="status-fresh"></p>
-    <p class="status-tornado"><strong>Tornado não tem previsão com hora e bairro.</strong> Dá para prever o ambiente favorável e acompanhar a tempestade no radar quando ela já existe.</p>
-  </div>
-</section>
-<noscript><p class="noscript">Esta página precisa de JavaScript para mostrar o radar e os avisos. Consulte <a href="https://avisos.inmet.gov.br/">avisos.inmet.gov.br</a> e <a href="https://www.simepar.br/simepar/radar_msc">o radar do Simepar</a>.</p></noscript>
-
-<main class="layout">
-  <section class="area-cards cards" aria-label="Resumo da situação">
-    <article class="card card-now">
-      <h2>Agora</h2>
-      <p class="big" id="now-title">Lendo o radar</p>
-      <p id="now-detail"></p>
-      <p class="fresh" id="now-fresh"></p>
-    </article>
-    <article class="card">
-      <h2>Pior momento</h2>
-      <p class="big" id="peak-title">Calculando</p>
-      <p id="peak-detail"></p>
-    </article>
-    <article class="card">
-      <h2>Em quanto tempo</h2>
-      <p class="big" id="eta-title">Calculando</p>
-      <p id="eta-detail"></p>
-    </article>
-    <article class="card">
-      <h2>Previsibilidade</h2>
-      <p class="big" id="conf-title">Calculando</p>
-      <p id="conf-detail"></p>
-    </article>
-    <article class="card card-wide worst">
-      <h2>Qual é a pior situação</h2>
-      <p id="worst-text">Uma supercélula passando sobre a cidade pode trazer vento destrutivo, granizo grande e chuva muito forte. Em casos raros, ela produz tornado. O tornado de 2 de novembro em Maringá foi classificado pelo Simepar como F2, em caráter preliminar, com vento estimado entre 181 e 253 km/h.</p>
-      <p id="worst-model" class="muted"></p>
-    </article>
+  <section class="now" id="now" aria-live="polite">
+    <p class="now-main" id="now-title">Lendo o radar</p>
+    <p class="now-sub" id="now-sub"></p>
   </section>
 
-  <section class="area-map map-sec" aria-label="Mapa">
+  <div class="stats">
+    <div class="stat"><b id="st-flash">–</b><small>raios em 100 km</small></div>
+    <div class="stat"><b id="st-near">–</b><small>raio mais perto</small></div>
+    <button type="button" class="stat" data-open="hours"><b id="st-peak">–</b><small id="st-peak-sub">pico previsto</small></button>
+    <button type="button" class="stat" data-open="hours"><b id="st-models">–</b><small>modelos</small></button>
+  </div>
+
+  <div class="map-wrap">
+    <div id="map" aria-label="Mapa de Maringá e região"></div>
+    <div class="age" id="age"><i class="dot"></i><span id="age-txt">conectando</span></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="ctrl">
     <div class="tabs" role="tablist" aria-label="Camada do mapa" id="tabs"></div>
-    <div class="map-wrap">
-      <div id="map" aria-label="Mapa de Maringá e região"></div>
-      <div class="legend" id="legend"></div>
-    </div>
     <div class="timebar">
       <button type="button" id="play" aria-label="Animar">▶</button>
       <input type="range" id="time" min="0" max="0" value="0" aria-label="Horário mostrado no mapa">
       <output id="time-label" for="time">--</output>
     </div>
-    <div class="toggles">
-      <label><input type="checkbox" id="tg-alerts" checked> Avisos INMET</label>
-      <label><input type="checkbox" id="tg-glm" checked> Raios (15 min)</label>
-      <label><input type="checkbox" id="tg-cells" checked> Células e rumo</label>
-    </div>
-    <p class="map-note" id="map-note"></p>
-    <p class="map-hint touch-only">No celular, use dois dedos para mover e aproximar o mapa.</p>
-    <p class="map-note">Compare com o <a href="https://www.simepar.br/simepar/radar_msc" rel="noopener">radar oficial do Simepar</a>.</p>
-  </section>
+  </div>
 
-  <div class="area-rest rest">
-    <section class="panel" id="strip-sec">
-      <div class="panel-head">
-        <h2>Hora a hora, modelo por modelo</h2>
-        <div class="seg" role="group" aria-label="Índice">
-          <button type="button" id="st-scp" class="on">Supercélula</button>
-          <button type="button" id="st-stp">Tornado</button>
-        </div>
+  <nav class="nav" aria-label="Mais informações">
+    <button type="button" data-open="hours">Próximas horas</button>
+    <button type="button" data-open="todo">O que fazer</button>
+    <button type="button" data-open="src">Fontes</button>
+    <a class="sos" href="tel:199"><strong>199</strong></a>
+    <a class="sos" href="tel:193"><strong>193</strong></a>
+  </nav>
+
+  <aside class="sheet" id="sheet">
+    <button type="button" class="sheet-close" id="sheet-close" aria-label="Fechar e voltar ao mapa">Voltar ao mapa</button>
+
+    <section class="panel" data-panel="hours">
+      <h2>Próximas horas</h2>
+      <p class="big" id="peak-title">Calculando</p>
+      <p class="line" id="peak-line"></p>
+      <div class="seg" role="group" aria-label="Índice">
+        <button type="button" id="st-scp" class="on">Supercélula</button>
+        <button type="button" id="st-stp">Tornado</button>
       </div>
-      <p class="muted">Cada linha é um centro meteorológico. Quanto mais linhas com a mesma cor na mesma hora, maior a concordância. Toque em uma hora para ver os números.</p>
-      <div class="strip-wrap"><canvas id="strip" height="220" role="img" aria-label="Ambiente para tempestades severas por hora e por modelo"></canvas></div>
+      <div class="strip-wrap"><canvas id="strip" height="200" role="img" aria-label="Ambiente para tempestades severas por hora e por modelo"></canvas></div>
       <div class="scale" id="strip-scale"></div>
-      <p id="strip-detail" class="strip-detail"></p>
+      <p class="strip-detail" id="strip-detail"></p>
       <button type="button" id="strip-map" class="link-btn" hidden>Ver essa hora no mapa</button>
+      <dl class="facts" id="facts"></dl>
+      <p class="note">Modelo mostra ambiente, não onde a tempestade nasce. Ninguém prevê tornado com hora e bairro.</p>
     </section>
 
-    <section class="panel">
-      <h2>O que cada fonte diz agora</h2>
-      <div class="agencies" id="agencies"></div>
-    </section>
-
-    <section class="panel" id="boato">
-      <h2>Boato ou fato?</h2>
-      <div class="claims" id="claims"></div>
-      <h3>Antes de repassar uma mensagem</h3>
-      <ul class="check">
-        <li>Tem data e hora? Print de radar e áudio circulam por dias.</li>
-        <li>Cita um órgão? Veja se a informação está no site dele.</li>
-        <li>Promete hora e bairro exatos para um tornado? Isso não existe.</li>
-        <li>Pede para encaminhar com urgência para todo mundo? Pare e confira.</li>
+    <section class="panel" data-panel="todo">
+      <h2>O que fazer</h2>
+      <h3>Agora</h3>
+      <ul>
+        <li>SMS: mande o CEP para <strong>40199</strong></li>
+        <li>WhatsApp: mande "oi" para <strong>(61) 2034-4611</strong></li>
+        <li>Carregue o celular</li>
+        <li>Recolha objetos soltos</li>
       </ul>
+      <h3>Tempestade chegando</h3>
+      <ul>
+        <li>Longe de janelas e vidros</li>
+        <li>Cômodo mais interno, como banheiro de alvenaria</li>
+        <li>Em vendaval forte, construção com laje</li>
+      </ul>
+      <h3>Na rua</h3>
+      <ul>
+        <li>Entre em construção sólida</li>
+        <li>Longe de árvores, torres e placas</li>
+        <li>Tornado: não fuja de carro, saia do veículo</li>
+        <li>Sem abrigo: deite em vala, longe de árvores e postes</li>
+      </ul>
+      <p class="note">Fontes: <a href="https://www.defesacivil.pr.gov.br/Pagina/Alertas-da-Defesa-Civil" rel="noopener">Defesa Civil do Paraná</a>, <a href="https://www.gazetadopovo.com.br/parana/defesa-civil-aponta-segundo-pior-cenario-do-ano-e-coloca-pr-em-alerta-maximo-para-novos-tornados/" rel="noopener">Gazeta do Povo</a>, <a href="https://avisos.inmet.gov.br/" rel="noopener">INMET</a>, <a href="https://www.curitiba.pr.gov.br/noticias/defesa-civil-divulga-orientacoes-de-seguranca-em-vendavais-e-tornados/81298" rel="noopener">Defesa Civil de Curitiba</a>. Em 2/11, o alerta por celular não chegou (<a href="https://www.pingafogo.com.br/noticias/alerta-de-tempestade-nao-funcionou-em-maringa-durante-tornado" rel="noopener">prefeito, via Pinga Fogo</a>): tenha mais de um canal.</p>
       <div class="share">
-        <a class="btn" id="share-wa" href="#" rel="noopener">Enviar esta página no WhatsApp</a>
+        <a class="btn" id="share-wa" href="#" rel="noopener">Enviar no WhatsApp</a>
         <button type="button" class="btn ghost" id="share-copy">Copiar link</button>
       </div>
     </section>
 
-    <section class="panel" id="fazer">
-      <h2>O que fazer</h2>
-      <div class="todo">
-        <div>
-          <h3>Antes</h3>
-          <ul>
-            <li>Cadastre o CEP: mande por SMS para <strong>40199</strong>.</li>
-            <li>No WhatsApp, mande "oi" para <strong>(61) 2034-4611</strong>.</li>
-            <li>Carregue o celular e a bateria externa.</li>
-            <li>Recolha objetos soltos do quintal e da sacada.</li>
-            <li>Combine com a família qual é o cômodo mais interno da casa.</li>
-          </ul>
-        </div>
-        <div>
-          <h3>Quando a tempestade chegar</h3>
-          <ul>
-            <li>Fique longe de janelas e vidros.</li>
-            <li>Vá para o cômodo mais interno, como um banheiro de alvenaria.</li>
-            <li>Em vendaval forte, prefira construção com laje.</li>
-            <li>Evite sair. Se puder, desligue os aparelhos da tomada.</li>
-          </ul>
-        </div>
-        <div>
-          <h3>Se estiver na rua</h3>
-          <ul>
-            <li>Procure uma construção sólida.</li>
-            <li>Não fique sob árvores nem perto de torres e placas.</li>
-            <li>Não tente fugir de um tornado de carro. Saia do veículo.</li>
-            <li>Sem abrigo: deite em uma vala ou depressão do terreno, longe de árvores, postes e muros.</li>
-          </ul>
-        </div>
-      </div>
-      <p class="muted">Orientações da Defesa Civil do Paraná, publicadas pela <a href="https://www.gazetadopovo.com.br/parana/defesa-civil-aponta-segundo-pior-cenario-do-ano-e-coloca-pr-em-alerta-maximo-para-novos-tornados/" rel="noopener">Gazeta do Povo</a>, do <a href="https://avisos.inmet.gov.br/" rel="noopener">INMET</a> e da <a href="https://www.curitiba.pr.gov.br/noticias/defesa-civil-divulga-orientacoes-de-seguranca-em-vendavais-e-tornados/81298" rel="noopener">Defesa Civil de Curitiba</a>.</p>
-      <p class="callout"><strong>Não dependa de um canal só.</strong> Segundo o prefeito, ouvido pelo <a href="https://www.pingafogo.com.br/noticias/alerta-de-tempestade-nao-funcionou-em-maringa-durante-tornado" rel="noopener">Pinga Fogo</a>, o alerta por celular não chegou aos moradores na madrugada do tornado de 2 de novembro.</p>
-    </section>
-
-    <section class="panel" id="ladder-sec">
-      <h2>Com quanta antecedência dá para saber</h2>
-      <ol class="ladder" id="ladder">
-        <li data-step="days"><strong>1 a 3 dias antes</strong><span>Os modelos mostram a região com ambiente favorável. Não mostram onde cada tempestade vai nascer.</span></li>
-        <li data-step="hours"><strong>Algumas horas antes</strong><span>Avisos e boletins do INMET, do Simepar e da Defesa Civil estreitam a área de risco.</span></li>
-        <li data-step="radar"><strong>Até 1 ou 2 horas antes</strong><span>O radar mostra a tempestade real e o rumo dela. É o que aparece em "Agora".</span></li>
-        <li data-step="minutes"><strong>Minutos antes</strong><span>Um tornado só é identificado quando o radar mostra rotação ou alguém o avista. Não existe aviso com mais antecedência que isso.</span></li>
-      </ol>
-    </section>
-
-    <section class="panel" id="metodo">
-      <h2>Como esta página funciona</h2>
-      <details open>
-        <summary>Situação de cada dado</summary>
-        <div class="table-wrap"><table class="health" id="health"><thead><tr><th>Dado</th><th>Origem</th><th>Atualizado</th></tr></thead><tbody></tbody></table></div>
-      </details>
+    <section class="panel" data-panel="src">
+      <h2>Fontes</h2>
+      <div class="agencies" id="agencies"></div>
       <details>
-        <summary>O que são os índices de supercélula e tornado</summary>
-        <p>Os mapas de calor usam dois índices conhecidos da meteorologia, calculados aqui a partir dos dados de cada modelo: o composto de supercélula (SCP) e o parâmetro significativo de tornado (STP, em camada fixa). Eles combinam a energia disponível (CAPE), a mudança do vento com a altura (cisalhamento), a rotação do ar nas camadas baixas (helicidade) e a altura da base das nuvens. O cálculo foi adaptado ao Hemisfério Sul.</p>
-        <p>SCP acima de 1 e STP acima de 1 são valores associados a supercélulas e a tornados significativos, quando a tempestade chega a se formar. Eles descrevem o ambiente. Não dizem que a tempestade vai acontecer.</p>
-        <p>A escala vai de "pouco favorável" a "muito favorável a supercélulas e tornados" e foi definida para esta página. Ela não é um produto oficial e não substitui os níveis de aviso do INMET e da Defesa Civil.</p>
+        <summary>Como o risco é calculado</summary>
+        <p>SCP (supercélula) e STP (tornado) são índices da meteorologia, calculados aqui com dados de cada modelo e adaptados ao Hemisfério Sul. Valor acima de 1 indica ambiente favorável, se a tempestade se formar. A célula forte é o eco de 45 dBZ ou mais no radar. O rumo compara a imagem atual com a de 30 minutos antes.</p>
       </details>
-      <details>
-        <summary>Limites</summary>
-        <ul>
-          <li>Modelos globais têm resolução de 10 a 25 km. Eles não enxergam uma célula isolada e subestimam rajadas de tempestade.</li>
-          <li>O mosaico público de radar pode ter falhas de cobertura e atraso de 10 a 20 minutos. Céu limpo no mapa não garante céu limpo na sua rua.</li>
-          <li>A estimativa de chegada supõe que a célula mantém o rumo e a velocidade. Tempestades mudam de rumo, enfraquecem e nascem de repente.</li>
-          <li>A posição dos raios medida por satélite pode ter erro de alguns quilômetros.</li>
-          <li>Se um dado ficar antigo, a página avisa. Se tudo falhar, siga os canais oficiais.</li>
-        </ul>
-      </details>
-      <p class="muted">Código aberto em <a href="https://github.com/diogovb/tempestade-maringa" rel="noopener">github.com/diogovb/tempestade-maringa</a>.</p>
+      <p class="note">Página independente, sem vínculo oficial. Não substitui os alertas da Defesa Civil. <a href="https://github.com/diogovb/tempestade-maringa" rel="noopener">Código aberto</a>.</p>
     </section>
-  </div>
-</main>
-
-<footer class="sos">
-  <a href="tel:199"><strong>199</strong> Defesa Civil</a>
-  <a href="tel:193"><strong>193</strong> Bombeiros</a>
-  <a href="#fazer">O que fazer</a>
-</footer>
+  </aside>
+</div>
+<noscript><p class="noscript">Esta página precisa de JavaScript. Consulte <a href="https://avisos.inmet.gov.br/">avisos.inmet.gov.br</a> e <a href="https://www.simepar.br/simepar/radar_msc">o radar do Simepar</a>.</p></noscript>
 
 <script src="assets/vendor/leaflet.js"></script>
 <script type="module" src="assets/app.js"></script>
